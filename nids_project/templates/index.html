@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NIDS Console — Network Intrusion Detection</title>
+<style>
+  :root{
+    --bg:#0b0f17; --panel:#121826; --panel-2:#0e1420; --line:#23304a;
+    --ink:#e6edf7; --muted:#7d8aa3; --mutedier:#566077;
+    --accent:#39d0d8; --accent-dim:#1c6a70;
+    --safe:#36d399; --threat:#ff5a6e; --warn:#f5a623;
+    --mono:'SF Mono',ui-monospace,'Cascadia Code','JetBrains Mono',Menlo,Consolas,monospace;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);
+    line-height:1.5;min-height:100vh;
+    background-image:radial-gradient(circle at 15% -10%,rgba(57,208,216,.07),transparent 40%),
+                     radial-gradient(circle at 85% 0%,rgba(255,90,110,.05),transparent 40%);}
+  .wrap{max-width:1120px;margin:0 auto;padding:28px 22px 64px}
+
+  /* Header */
+  header{display:flex;align-items:center;justify-content:space-between;
+    gap:16px;flex-wrap:wrap;padding-bottom:20px;border-bottom:1px solid var(--line);margin-bottom:26px}
+  .brand{display:flex;align-items:center;gap:14px}
+  .logo{width:42px;height:42px;border:1px solid var(--accent-dim);border-radius:9px;
+    display:grid;place-items:center;background:var(--panel);position:relative;flex-shrink:0}
+  .logo::before{content:"";width:14px;height:14px;border:2px solid var(--accent);border-radius:50%}
+  .logo::after{content:"";position:absolute;width:6px;height:6px;background:var(--accent);
+    border-radius:50%;box-shadow:0 0 10px var(--accent)}
+  .brand h1{font-size:18px;font-weight:600;letter-spacing:.2px}
+  .brand .sub{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase}
+  .status{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right}
+  .status b{color:var(--safe)}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--safe);
+    box-shadow:0 0 8px var(--safe);margin-right:6px;animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+  .grid{display:grid;grid-template-columns:1.35fr 1fr;gap:22px;align-items:start}
+  @media(max-width:860px){.grid{grid-template-columns:1fr}}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px}
+  .panel h2{font-size:12px;text-transform:uppercase;letter-spacing:1.6px;color:var(--muted);
+    font-weight:600;margin-bottom:4px;font-family:var(--mono)}
+  .panel .lead{font-size:13px;color:var(--mutedier);margin-bottom:18px}
+
+  /* Examples */
+  .examples{margin-bottom:22px}
+  .ex-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .chip{font-family:var(--mono);font-size:12px;padding:7px 13px;border-radius:8px;
+    border:1px solid var(--line);background:var(--panel-2);color:var(--ink);cursor:pointer;
+    transition:all .15s;letter-spacing:.3px}
+  .chip:hover{border-color:var(--accent-dim);color:var(--accent);transform:translateY(-1px)}
+  .chip[data-cat="normal"]:hover{border-color:var(--safe);color:var(--safe)}
+  .chip[data-cat="DoS"]:hover,.chip[data-cat="Probe"]:hover,
+  .chip[data-cat="R2L"]:hover,.chip[data-cat="U2R"]:hover{border-color:var(--threat);color:var(--threat)}
+
+  /* Form */
+  .fields{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:520px){.fields{grid-template-columns:1fr}}
+  .field{display:flex;flex-direction:column;gap:5px}
+  .field label{font-size:11px;font-family:var(--mono);color:var(--muted);letter-spacing:.4px}
+  .field input,.field select{background:var(--panel-2);border:1px solid var(--line);
+    color:var(--ink);border-radius:8px;padding:9px 11px;font-size:13px;font-family:var(--mono);
+    transition:border-color .15s}
+  .field input:focus,.field select:focus{outline:none;border-color:var(--accent)}
+  .field select{appearance:none;cursor:pointer;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237d8aa3'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 11px center}
+
+  .actions{margin-top:20px;display:flex;gap:10px;align-items:center}
+  .btn{font-family:var(--mono);font-size:13px;letter-spacing:.5px;padding:11px 22px;border-radius:9px;
+    border:none;cursor:pointer;font-weight:600;transition:all .15s}
+  .btn-go{background:var(--accent);color:#04181a;box-shadow:0 0 0 1px var(--accent-dim)}
+  .btn-go:hover{box-shadow:0 4px 20px rgba(57,208,216,.35);transform:translateY(-1px)}
+  .btn-reset{background:transparent;color:var(--muted);border:1px solid var(--line)}
+  .btn-reset:hover{color:var(--ink);border-color:var(--mutedier)}
+  .note{font-size:11px;color:var(--mutedier);margin-left:auto;font-family:var(--mono)}
+
+  /* Result */
+  .verdict{border-radius:14px;border:1px solid var(--line);padding:26px 22px;text-align:center;
+    background:var(--panel-2);transition:all .3s;min-height:150px;display:grid;place-content:center;gap:6px}
+  .verdict.idle .vstate{color:var(--mutedier)}
+  .verdict.safe{border-color:var(--safe);background:linear-gradient(180deg,rgba(54,211,153,.1),var(--panel-2))}
+  .verdict.threat{border-color:var(--threat);background:linear-gradient(180deg,rgba(255,90,110,.12),var(--panel-2))}
+  .verdict .vlabel{font-family:var(--mono);font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
+  .verdict .vstate{font-size:26px;font-weight:700;letter-spacing:.3px}
+  .verdict.safe .vstate{color:var(--safe)}
+  .verdict.threat .vstate{color:var(--threat)}
+  .verdict .vdesc{font-size:12.5px;color:var(--muted);max-width:340px;margin:4px auto 0}
+  .verdict .vconf{font-family:var(--mono);font-size:12px;color:var(--ink);margin-top:8px}
+
+  .bars{margin-top:20px;display:flex;flex-direction:column;gap:11px}
+  .bar-row{display:grid;grid-template-columns:64px 1fr 52px;align-items:center;gap:10px;font-family:var(--mono);font-size:11px}
+  .bar-row .nm{color:var(--muted);letter-spacing:.5px}
+  .bar-track{height:7px;background:var(--panel-2);border-radius:4px;overflow:hidden;border:1px solid var(--line)}
+  .bar-fill{height:100%;width:0;background:var(--accent);border-radius:4px;transition:width .6s cubic-bezier(.2,.8,.2,1)}
+  .bar-fill.top{background:linear-gradient(90deg,var(--accent-dim),var(--accent))}
+  .bar-row .pct{text-align:right;color:var(--ink)}
+
+  footer{margin-top:30px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--mutedier);letter-spacing:.4px}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(4,24,26,.3);
+    border-top-color:#04181a;border-radius:50%;animation:rot .6s linear infinite;vertical-align:-2px;margin-right:7px}
+  @keyframes rot{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <h1>NIDS Console</h1>
+        <div class="sub">Network Intrusion Detection · NSL-KDD</div>
+      </div>
+    </div>
+    <div class="status">
+      <div><span class="dot"></span><b>MODEL ONLINE</b></div>
+      <div>engine · {{ best_model }}</div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- LEFT: input -->
+    <div class="panel">
+      <div class="examples">
+        <h2>Quick Load</h2>
+        <div class="lead">Load a real captured connection from the dataset, then analyze it — or edit the fields below manually.</div>
+        <div class="ex-row">
+          {% for cat in examples.keys() %}
+          <button class="chip" data-cat="{{ cat }}" onclick="loadExample('{{ cat }}')">{{ cat }}</button>
+          {% endfor %}
+        </div>
+      </div>
+
+      <h2>Connection Features</h2>
+      <div class="lead">Key network-flow attributes. Remaining features default to dataset medians.</div>
+      <div class="fields">
+        {% for f in key_features %}
+        <div class="field">
+          <label for="{{ f }}">{{ f }}</label>
+          {% if f in categorical %}
+          <select id="{{ f }}">
+            {% for opt in cat_options[f] %}<option value="{{ opt }}">{{ opt }}</option>{% endfor %}
+          </select>
+          {% else %}
+          <input type="number" step="any" id="{{ f }}" value="{{ defaults[f] }}">
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-go" id="analyzeBtn" onclick="analyze()">Analyze Connection</button>
+        <button class="btn btn-reset" onclick="resetForm()">Reset</button>
+        <span class="note">41 features · 5 classes</span>
+      </div>
+    </div>
+
+    <!-- RIGHT: result -->
+    <div class="panel">
+      <h2>Detection Result</h2>
+      <div class="lead">Classifier verdict and per-class confidence.</div>
+      <div class="verdict idle" id="verdict">
+        <div class="vlabel">Awaiting analysis</div>
+        <div class="vstate">— — —</div>
+        <div class="vdesc">Load an example or enter values, then press Analyze.</div>
+      </div>
+      <div class="bars" id="bars"></div>
+    </div>
+  </div>
+
+  <footer>Trained on NSL-KDD (125,973 records) · scikit-learn · For educational use</footer>
+</div>
+
+<script>
+  const EXAMPLES = {{ examples|tojson }};
+  const KEY = {{ key_features|tojson }};
+  const DEFAULTS = {{ defaults|tojson }};
+
+  function loadExample(cat){
+    const ex = EXAMPLES[cat];
+    KEY.forEach(f=>{
+      const el = document.getElementById(f);
+      if(el && ex[f] !== undefined) el.value = ex[f];
+    });
+    // stash full feature set (incl. non-UI features) for accurate prediction
+    window.__fullRow = ex;
+    analyze();
+  }
+
+  function resetForm(){
+    KEY.forEach(f=>{ const el=document.getElementById(f); if(el) el.value = DEFAULTS[f]; });
+    window.__fullRow = null;
+    const v=document.getElementById('verdict');
+    v.className='verdict idle';
+    v.innerHTML='<div class="vlabel">Awaiting analysis</div><div class="vstate">— — —</div>'+
+      '<div class="vdesc">Load an example or enter values, then press Analyze.</div>';
+    document.getElementById('bars').innerHTML='';
+  }
+
+  async function analyze(){
+    const btn=document.getElementById('analyzeBtn');
+    btn.innerHTML='<span class="spin"></span>Analyzing';
+    // Start from full row if an example was loaded, else just key fields
+    const payload = window.__fullRow ? {...window.__fullRow} : {};
+    KEY.forEach(f=>{ const el=document.getElementById(f); if(el) payload[f]=el.value; });
+
+    try{
+      const r=await fetch('/predict',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(payload)});
+      const d=await r.json();
+      render(d);
+    }catch(e){
+      const v=document.getElementById('verdict');
+      v.className='verdict threat';
+      v.innerHTML='<div class="vlabel">Error</div><div class="vstate">Request failed</div>'+
+        '<div class="vdesc">Could not reach the model server.</div>';
+    }
+    btn.innerHTML='Analyze Connection';
+  }
+
+  function render(d){
+    const v=document.getElementById('verdict');
+    v.className='verdict '+(d.is_attack?'threat':'safe');
+    v.innerHTML=
+      '<div class="vlabel">'+(d.is_attack?'⚠ Threat Detected':'✓ Clear')+'</div>'+
+      '<div class="vstate">'+d.title+'</div>'+
+      '<div class="vdesc">'+d.description+'</div>'+
+      '<div class="vconf">confidence · '+d.confidence+'%</div>';
+
+    const bars=document.getElementById('bars');
+    bars.innerHTML='';
+    const entries=Object.entries(d.probabilities);
+    entries.forEach(([name,pct],i)=>{
+      const row=document.createElement('div');
+      row.className='bar-row';
+      row.innerHTML='<span class="nm">'+name+'</span>'+
+        '<div class="bar-track"><div class="bar-fill '+(i===0?'top':'')+'"></div></div>'+
+        '<span class="pct">'+pct+'%</span>';
+      bars.appendChild(row);
+      requestAnimationFrame(()=>{ row.querySelector('.bar-fill').style.width=pct+'%'; });
+    });
+  }
+</script>
+</body>
+</html>
